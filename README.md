@@ -15,8 +15,13 @@ El proyecto ha sido desarrollado con fines educativos y de investigación en cib
 - 🔌 Identificación del puerto de destino.
 - 📊 Conteo de puertos de destino diferentes por flujo de conexión.
 - ⏱️ Ventana de detección configurable.
-- 🚨 Umbral de detección configurable.
-- 🎨 Interfaz de terminal con colores.
+- 🚨 Sistema de niveles de severidad.
+- 🟢 Nivel **LOW**.
+- 🟡 Nivel **MEDIUM**.
+- 🟣 Nivel **HIGH**.
+- 🔴 Nivel **CRITICAL**.
+- 🎨 Interfaz de terminal con colores según la severidad.
+- 🚨 Alertas progresivas al alcanzar nuevos niveles.
 - ✅ Comprobación automática de permisos y dependencias.
 - 🖥️ Permite seleccionar la interfaz de red que se desea monitorizar.
 
@@ -26,50 +31,83 @@ El proyecto ha sido desarrollado con fines educativos y de investigación en cib
 
 SENTINEL IDS monitoriza los paquetes TCP SYN que circulan por la interfaz de red seleccionada.
 
-La lógica de detección utiliza dos parámetros:
+El sistema analiza cada combinación de:
 
 ```text
-Umbral: 10 puertos diferentes
-Ventana: 10 segundos
+IP de origen → IP de destino
 ```
 
-Cuando una misma IP de origen intenta conectarse a **10 o más puertos diferentes de una misma IP de destino dentro de una ventana de 10 segundos**, SENTINEL IDS genera una alerta de seguridad.
+y cuenta los **puertos de destino diferentes** contactados dentro de una ventana temporal de 10 segundos.
 
-Ejemplo:
+La versión actual utiliza cuatro niveles de severidad:
+
+| Nivel | Puertos detectados | Descripción |
+|---|---:|---|
+| 🟢 **LOW** | 5 | Actividad TCP SYN sospechosa |
+| 🟡 **MEDIUM** | 10 | Posible escaneo TCP SYN |
+| 🟣 **HIGH** | 30 | Escaneo TCP SYN agresivo |
+| 🔴 **CRITICAL** | 100 | Escaneo TCP SYN masivo |
+
+Por ejemplo, si una misma IP de origen intenta acceder a diferentes puertos de una misma IP de destino:
 
 ```text
 192.168.0.50 → 192.168.0.1:21
 192.168.0.50 → 192.168.0.1:22
 192.168.0.50 → 192.168.0.1:23
-...
+192.168.0.50 → 192.168.0.1:80
 192.168.0.50 → 192.168.0.1:443
 ```
 
-Al alcanzar el umbral configurado, el sistema informa de un posible escaneo TCP SYN.
+al alcanzar el quinto puerto diferente, SENTINEL IDS clasifica la actividad como:
+
+```text
+LOW
+```
+
+Si la actividad continúa dentro de la misma ventana:
+
+```text
+5   → LOW
+10  → MEDIUM
+30  → HIGH
+100 → CRITICAL
+```
+
+Cada nivel genera una alerta únicamente cuando se alcanza un nuevo nivel de severidad.
+
+Cuando finaliza la ventana temporal, el contador se reinicia.
 
 ---
 
 ## 📋 Ejemplo de detección
 
-Durante la monitorización, SENTINEL IDS muestra las conexiones SYN observadas:
+Durante la monitorización, SENTINEL IDS muestra las conexiones SYN observadas junto con su nivel actual:
 
 ```text
-[SYN] 192.168.0.50 -> 192.168.0.1:22 | puertos observados: 2/10
+[04:13:55] [INFO] 192.168.0.10 -> 192.168.0.1:22 | puertos: 1/100
+[04:13:55] [LOW] 192.168.0.10 -> 192.168.0.1:113 | puertos: 6/100
+[04:13:55] [MEDIUM] 192.168.0.10 -> 192.168.0.1:23 | puertos: 10/100
+[04:13:55] [HIGH] 192.168.0.10 -> 192.168.0.1:14775 | puertos: 30/100
+[04:13:55] [CRITICAL] 192.168.0.10 -> 192.168.0.1:5179 | puertos: 100/100
 ```
 
-Cuando se alcanza el umbral:
+Cuando se alcanza un nivel de severidad, SENTINEL IDS genera una alerta:
 
 ```text
 ╔══════════════════════════════════════════════════════╗
-║                  ⚠ ALERTA DE SEGURIDAD              ║
+║              ⚠ ALERTA [CRITICAL]                    ║
 ╚══════════════════════════════════════════════════════╝
 
-  [!] Posible escaneo TCP SYN detectado
-  [i] Hora       : 03:15:42
-  [i] Origen     : 192.168.0.50
+  [!] Nivel      : CRITICAL
+  [!] Evento     : Escaneo TCP SYN masivo detectado
+  [i] Hora       : 04:13:55
+  [i] Origen     : 192.168.0.10
   [i] Destino    : 192.168.0.1
-  [i] Puertos    : 10 en 10 segundos
+  [i] Puertos    : 100 en 10 segundos
+  [!] Revisa la actividad antes de sacar conclusiones.
 ```
+
+Los niveles de severidad también aparecen coloreados directamente en la monitorización de terminal.
 
 ---
 
@@ -136,15 +174,23 @@ Antes de iniciar la monitorización, el programa comprueba que la interfaz espec
 La versión actual utiliza:
 
 ```bash
-UMBRAL=10
+LOW=5
+MEDIUM=10
+HIGH=30
+CRITICAL=100
+
 VENTANA=10
 ```
 
 Esto significa:
 
 ```text
-10 puertos diferentes
-dentro de 10 segundos
+5   puertos → LOW
+10  puertos → MEDIUM
+30  puertos → HIGH
+100 puertos → CRITICAL
+
+Ventana de detección → 10 segundos
 ```
 
 Estos valores pueden modificarse directamente en el script para adaptar la sensibilidad del IDS a diferentes entornos.
@@ -205,9 +251,11 @@ Este proyecto ha sido desarrollado para practicar y demostrar conceptos relacion
 
 SENTINEL IDS es un **proyecto educativo y ligero**, por lo que no pretende sustituir a soluciones profesionales de seguridad de red.
 
-La implementación actual está centrada específicamente en la detección de posibles escaneos TCP SYN mediante un sistema de detección basado en umbrales.
+La implementación actual está centrada específicamente en la detección de posibles escaneos TCP SYN mediante un sistema de detección basado en umbrales y ventanas temporales.
 
-Por este motivo, puede producir falsos positivos o no detectar determinadas técnicas de reconocimiento más avanzadas.
+Los niveles de severidad indican la cantidad de puertos diferentes observados y **no representan por sí mismos una confirmación de un ataque**.
+
+Por este motivo, SENTINEL IDS puede producir falsos positivos o no detectar determinadas técnicas de reconocimiento más avanzadas.
 
 ---
 
@@ -216,7 +264,6 @@ Por este motivo, puede producir falsos positivos o no detectar determinadas téc
 Algunas mejoras que podrían incorporarse en futuras versiones:
 
 - 📝 Registro persistente de eventos.
-- 🚨 Diferentes niveles de severidad.
 - ✅ Lista blanca de hosts confiables.
 - 🔎 Múltiples reglas de detección.
 - 📡 Detección de escaneos UDP.
@@ -225,6 +272,7 @@ Algunas mejoras que podrían incorporarse en futuras versiones:
 - 🌐 Detección de escaneos distribuidos.
 - 📬 Notificaciones.
 - 🗂️ Rotación de logs.
+- 📤 Exportación de eventos.
 
 ---
 
@@ -236,33 +284,45 @@ No utilices SENTINEL IDS para monitorizar o analizar redes sobre las que no teng
 
 ---
 
-📋 Changelog
+## 📋 Changelog
 
-[v1.1] — 2026-10-08
+### [v1.1] — 2026-10-08
 
-Sistema de niveles de severidad
+**Sistema de niveles de severidad**
 
-✨ Añadido
+#### ✨ Añadido
 
-Sistema de clasificación de alertas por niveles:
+- 🟢 **LOW** — 5 puertos.
+- 🟡 **MEDIUM** — 10 puertos.
+- 🟣 **HIGH** — 30 puertos.
+- 🔴 **CRITICAL** — 100 puertos.
+- Alertas progresivas al alcanzar un nuevo nivel de severidad.
+- Colores diferenciados para cada nivel directamente en la monitorización.
+- Identificación del nivel de severidad junto a cada evento detectado.
+- Reinicio automático del contador al finalizar la ventana temporal.
+- Detección independiente por combinación de IP origen e IP destino.
 
-🟢 LOW — 5 puertos
+#### 🔧 Mejorado
 
-🟡 MEDIUM — 10 puertos
+- Corrección del análisis de la salida de `tcpdump`.
+- Extracción más precisa de IP origen, IP destino y puerto destino.
+- Mejora del seguimiento de puertos únicos dentro de cada ventana de detección.
+- Mejora de la presentación de eventos y alertas en terminal.
 
-🟣 HIGH — 30 puertos
+---
 
-🔴 CRITICAL — 100 puertos
+### [v1.0] — Primera versión
 
-Alertas progresivas al alcanzar un nuevo nivel de severidad.
+- Detección básica de escaneos TCP SYN.
+- Captura de tráfico mediante `tcpdump`.
+- Análisis mediante `awk`.
+- Conteo de puertos diferentes.
+- Ventana temporal de detección.
+- Alertas de seguridad en terminal.
+- Selección de interfaz de red.
+- Comprobación de permisos y dependencias.
 
-Colores diferenciados para cada nivel directamente en la monitorización.
-
-Identificación del nivel de severidad junto a cada evento detectado.
-
-Reinicio automático del contador al finalizar la ventana temporal.
-
-Detección independiente por combinación de IP origen e IP destino.
+---
 
 ## 👤 Autor
 

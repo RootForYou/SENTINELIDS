@@ -236,6 +236,34 @@ No utilices SENTINEL IDS para monitorizar o analizar redes sobre las que no teng
 
 ---
 
+📋 Changelog
+
+[v1.1] — 2026-10-08
+
+Sistema de niveles de severidad
+
+✨ Añadido
+
+Sistema de clasificación de alertas por niveles:
+
+🟢 LOW — 5 puertos
+
+🟡 MEDIUM — 10 puertos
+
+🟣 HIGH — 30 puertos
+
+🔴 CRITICAL — 100 puertos
+
+Alertas progresivas al alcanzar un nuevo nivel de severidad.
+
+Colores diferenciados para cada nivel directamente en la monitorización.
+
+Identificación del nivel de severidad junto a cada evento detectado.
+
+Reinicio automático del contador al finalizar la ventana temporal.
+
+Detección independiente por combinación de IP origen e IP destino.
+
 ## 👤 Autor
 
 **RootForYou**
